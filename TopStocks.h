@@ -27,7 +27,24 @@ public:
 	constexpr TChangePercent UpdateLastParice(const TPrice &price) noexcept
 	{
 		m_last = price;
-		return TChangePercent((100.0 * (price - m_open) / m_open) * 100.0 + (price < m_open? -0.5: 0.5));
+		const auto change = m_change;
+		m_change = TChangePercent((100.0 * (price - m_open) / m_open) * 100.0 + (price < m_open? -0.5: 0.5));
+		return change;
+	}
+
+	constexpr double GetChangPercent() const noexcept
+	{
+		return double(m_change) / 100.0;
+	}
+
+	constexpr bool IsGainer() const noexcept
+	{
+		return m_change > 0;
+	}
+
+	constexpr bool IsLoser() const noexcept
+	{
+		return m_change < 0;
 	}
 
 	const TStockID m_id;
@@ -58,38 +75,31 @@ public:
 		if (stock.m_last == price)
 			return;
 
-		const TChangePercent change = stock.UpdateLastParice(price);
-		if (stock.m_change == change)
+		const TChangePercent change_prev = stock.UpdateLastParice(price);
+		if (stock.m_change == change_prev)
 			return;
 
-		bool change_gainers = false;
-		bool change_losers = false;
-		
 		TTopStocksMap::node_type node;
 		if (stock.m_it)
 		{
-			change_gainers = stock.m_change >= m_gainers;
-			change_losers = stock.m_change <= m_losers;
-
 			node = m_tops.extract(*stock.m_it);
 			stock.m_it = std::nullopt;
 		}
 
-		stock.m_change = change;
-		if (change != 0)
+		if (stock.m_change != 0)
 		{
 			if (!node)
-				stock.m_it = m_tops.emplace(change, &stock);
+				stock.m_it = m_tops.emplace(stock.m_change, &stock);
 			else
 			{
-				node.key() = change;
+				node.key() = stock.m_change;
 				stock.m_it = m_tops.insert(std::move(node));
 			}
 		}
 
-		const auto update = UpdateTops(change);
-		if (m_fn && (update.first || update.second || change_gainers || change_losers))
-			m_fn(*this, update.first || change_gainers, update.second || change_losers);
+		const auto update = UpdateTops(change_prev, stock.m_change);
+		if (m_fn && (update.first || update.second))
+			m_fn(*this, update.first, update.second);
 	}
 
 	std::vector<CStock *> GetGainers() const
@@ -99,7 +109,7 @@ public:
 
 	std::vector<CStock *> GetGainers(size_t depth) const
 	{
-		return GetTops(m_tops.rbegin(), m_tops.rend(), depth);
+		return GetTops(m_tops.rbegin(), m_tops.rend(), depth, true);
 	}
 
 	std::vector<CStock *> GetLosers() const
@@ -109,7 +119,7 @@ public:
 
 	std::vector<CStock *> GetLosers(size_t depth) const
 	{
-		return GetTops(m_tops.begin(), m_tops.end(), depth);
+		return GetTops(m_tops.begin(), m_tops.end(), depth, false);
 	}
 
 	size_t GetStockCount() const noexcept
@@ -131,13 +141,14 @@ public:
 	{
 		return m_depth;
 	}
+
 protected:
 	template <typename It>
-	std::vector<CStock *> GetTops(It it, It end, size_t depth) const
+	std::vector<CStock *> GetTops(It it, It end, size_t depth, bool gainer) const
 	{
 		std::vector<CStock *> res;
 		res.reserve(depth);
-		for (; it != end && depth; ++it, --depth)
+		for (; it != end && depth && (gainer? it->second->IsGainer(): it->second->IsLoser()); ++it, --depth)
 			res.emplace_back(it->second);
 
 		return res;
@@ -160,16 +171,16 @@ protected:
 		return *it.first->second;
 	}
 
-	std::pair<bool, bool> UpdateTops(const TChangePercent &change) noexcept
+	std::pair<bool, bool> UpdateTops(const TChangePercent &change_prev, const TChangePercent &change) noexcept
 	{
 		if (m_tops.size() <= m_depth)
 			return {true, true};
 
 		bool gainers_changed = false;
-		if (m_gainers == 0 || change >= m_gainers)
+		if (m_gainers == 0 || change >= m_gainers || change_prev >= m_gainers)
 		{
 			auto it = m_tops.rbegin();
-			for (size_t i = 0; i < m_depth; ++i)
+			for (size_t i = 1; i < m_depth && it->second->IsGainer(); ++i)
 				++it;
 
 			m_gainers = it->second->m_change;
@@ -177,10 +188,10 @@ protected:
 		}
 
 		bool losers_changed = false;
-		if (m_losers == 0 || change <= m_losers)
+		if (m_losers == 0 || (change != 0 && change <= m_losers) || (change_prev != 0 && change_prev <= m_losers))
 		{
 			auto it = m_tops.begin();
-			for (size_t i = 0; i < m_depth; ++i)
+			for (size_t i = 1; i < m_depth && it->second->IsLoser(); ++i)
 				++it;
 
 			m_losers = it->second->m_change;

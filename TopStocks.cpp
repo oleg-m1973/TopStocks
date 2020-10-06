@@ -6,7 +6,9 @@
 #include <iostream>
 #include <random>
 #include <chrono>
-#include <iomanip>
+#include <thread>
+#include <fstream>
+#include <conio.h>
 
 class CTimer
 {
@@ -77,11 +79,13 @@ std::pair<TStockID, TPrice> GenRandomStock()
 	return {id, price};
 }
 
+static
 void PrintStock(CStock &stock)
 {
-	printf("%6llu %9.2f %9.2f %6.2f%%", stock.m_id, stock.m_open, stock.m_last, double(stock.m_change) / 100.0);
+	printf("%6zu %9.2f %9.2f %6.2f%%", stock.m_id, stock.m_open, stock.m_last, stock.GetChangPercent());
 }
 
+static
 void PrintTops(const CTopStocks &tops, bool update_gainers, bool update_loosers)
 {
 
@@ -114,6 +118,7 @@ void PrintTops(const CTopStocks &tops, bool update_gainers, bool update_loosers)
 		++y;
 	}
 
+	::SetConsoleCursorPosition(h, {0, yy + SHORT(tops.GetDepth())});
 	std::cout << std::endl;
 
 	std::cout << "Stocks: " << tops.GetStockCount() << std::endl;
@@ -122,6 +127,7 @@ void PrintTops(const CTopStocks &tops, bool update_gainers, bool update_loosers)
 static 
 void UnitTest()
 {
+	std::cout << __FUNCTION__ << std::endl;
 	static const size_t _n = 1'000'000;
 	CTopStocks tops;
 	
@@ -148,32 +154,19 @@ void UnitTest()
 		}
 
 		const size_t n = std::min(stocks.size(), tops.GetDepth());
-		size_t j = 0;
 		{
-				
-			auto it = stocks.begin();
-			for (auto &item: tops.GetLosers())
-			{
-				if ((*it++)->m_change != item->m_change)
+			auto items = tops.GetLosers();
+			for (size_t i = 0; i < n && stocks[i]->IsLoser(); ++i)
+				if (i >= items.size() || items[i]->m_change != stocks[i]->m_change)
 					throw std::runtime_error("LOSERS!!!!!!!!!!!!!!!!!!");
-				++j;
-			}
 		}
-		if (j != n)
-			throw std::runtime_error("LOSERS!!!!!!!!!!!!!!!!!!");
 
-		j = 0;
 		{
-			auto it = stocks.rbegin();
-			for (auto &item: tops.GetGainers())
-			{
-				if ((*it++)->m_change != item->m_change)
+			auto items = tops.GetGainers();
+			for (size_t i = 0, j = stocks.size() - 1; i < n && stocks[j]->IsGainer(); ++i, --j)
+				if (i >= items.size() || items[i]->m_change != stocks[j]->m_change)
 					throw std::runtime_error("GAINERS!!!!!!!!!!!!!!!!!!");
-				++j;
-			}
 		}
-		if (j != n)
-			throw std::runtime_error("LOSERS!!!!!!!!!!!!!!!!!!");
 		
 		system("cls");
 		std::cout << (_n - i) << std::endl;
@@ -182,14 +175,28 @@ void UnitTest()
 	}
 
 	const auto dt = tm.Diff();
-	std::cout << "OK: " << dt.count() << "ms" << std::endl;
+	std::cout << "OK: " << dt.count() <<  " ms" << std::endl;
 }
 
+static
 void PerformanceTest()
 {
-	static const size_t _n = 1'000'000;
+	std::cout << __FUNCTION__ << std::endl;
+	std::cout << "Test running...";
+	static const size_t _n = 10'000'000;
+	size_t update_gainers = 0;
+	size_t update_losers = 0;
 	CTopStocks tops;
-	
+	tops.SetUpdateTopsCallback([&](auto &, bool gnr, bool lsr)
+	{
+		if (gnr)
+			++update_gainers;
+
+		if (lsr)
+			++update_losers;
+	});
+
+
 	CTimer tm;
 
 	for (size_t i = 0; i < _n; ++i)
@@ -197,48 +204,108 @@ void PerformanceTest()
 		const auto stock = GenRandomStock();
 		tops.OnQuote(stock.first, stock.second);
 	}
+	const auto dt = tm.Diff();
+
+	system("cls");
+	std::cout 
+		<< "Trades     : " << _n << std::endl
+		<< "Stocks     : " << tops.GetStockCount() << std::endl
+		<< "Upd Gainers: " << update_gainers << std::endl
+		<< "Upd Losers : " << update_losers << std::endl
+		<< "Time       : " << dt.count() << " ms" << std::endl
+		;
 }
 
+static 
+void RandomTest()
+{
+	std::cout << __FUNCTION__ << std::endl;
+	size_t update_gainers = 0;
+	size_t update_losers = 0;
+	bool delay = false;
+
+	CTopStocks tops;
+	tops.SetUpdateTopsCallback([&](auto &tops, bool gnr, bool lsr)
+	{
+		if (gnr)
+			++update_gainers;
+
+		if (lsr)
+			++update_losers;
+
+		system("cls");
+		PrintTops(tops, gnr, lsr);
+		std::cout << "Press any key to finish" << std::endl;
+		delay = true;
+	});
+
+	for (size_t i = 0; !_kbhit(); ++i)
+	{
+		const auto stock = GenRandomStock();
+		tops.OnQuote(stock.first, stock.second);
+
+		if (delay)
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
+	_getch();
+}
+
+static 
+void ReadFromFile()
+{
+	std::cout << __FUNCTION__ << std::endl;
+	CTopStocks tops;
+	tops.SetUpdateTopsCallback([&](auto &tops, bool gnr, bool lsr)
+	{
+		system("cls");
+		PrintTops(tops, gnr, lsr);
+	});
+
+	std::ifstream in("stocks.txt");
+	if (!in)
+	{
+		const auto err = ::GetLastError();
+		std::cerr << "Can't open file, err: " << err << std::endl;
+		return;
+	}
+
+	TStockID id;
+	TPrice price;
+	while (in >> id >> price)
+		tops.OnQuote(id, price);
+
+	system("cls");
+	PrintTops(tops, true, true);
+}
 int main()
 {
+	//setlocale(LC_ALL, "Russian");
 	try
 	{
-		std::pair<TStockID, TPrice> stocks[] = 
+		for (;;)
 		{
-			{34, 634.12},
-			{34, 697.20},
-			{235, 23.87},
-			{235, 25.60},
-			{9722, 53.10},
-			{9722, 56.90},
-			{482, 0.54},
-			{482, 0.55},
+			system("cls");
+			std::cout << "1: Unit test" << std::endl;
+			std::cout << "2: Read from file ./stocks.txt" << std::endl;
+			std::cout << "3: Random stocks" << std::endl;
+			std::cout << "4: Benchmark" << std::endl;
+			std::cout << "0: exit" << std::endl;
+		
+			int n = 0;
+			std::cin >> n;
 
-			{523, 324.90},
-			{523, 287.2},
-			{1093, 83.55},
-			{1093, 76.5},
-			{618, 1.35},
-			{618, 1.28},
-			{208, 5.66},
-			{208, 5.55},
-		};
-
-		//CTopStocks tops;
-		//tops.SetUpdateTopsCallback([](auto &tops, bool update_gainers, bool update_loosers)
-		//{
-		//	system("cls");
-		//	PrintTops(tops, update_gainers, update_loosers);
-		//});
-
-		//for (auto &item: stocks)
-		//{
-		//	tops.OnQuote(item.first, item.second);
-		//}
-
-		UnitTest();
-		//PrintAt(20, 0, "!!!: ", 123445);
-
+			system("cls");
+			switch (n)
+			{
+			case 1: UnitTest(); break;
+			case 2: ReadFromFile(); break;
+			case 3: RandomTest(); break;
+			case 4: PerformanceTest(); break; 
+			case 0: return 0;
+			default: continue;
+			}
+			system("pause");
+		}
 	}
 	catch (const std::exception &e)
 	{
