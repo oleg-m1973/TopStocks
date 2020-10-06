@@ -88,7 +88,6 @@ void PrintStock(const CStock &stock)
 static
 void PrintTops(const CTopStocks &tops, bool update_gainers, bool update_loosers)
 {
-
 	auto h = ::GetStdHandle(STD_OUTPUT_HANDLE);
 	CONSOLE_SCREEN_BUFFER_INFO sbi = {};
 	::GetConsoleScreenBufferInfo(h, &sbi);
@@ -127,13 +126,12 @@ void PrintTops(const CTopStocks &tops, bool update_gainers, bool update_loosers)
 static 
 void UnitTest()
 {
-	std::cout << __FUNCTION__ << std::endl;
 	static const size_t _n = 1'000'000;
 	CTopStocks tops;
 	
 	CTimer tm;
 
-	for (size_t i = 0; i < _n; ++i)
+	for (size_t i = 0; i <= _n; ++i)
 	{
 		const auto stock = GenRandomStock();
 		tops.OnQuote(stock.first, stock.second);
@@ -169,7 +167,7 @@ void UnitTest()
 		}
 		
 		system("cls");
-		std::cout << (_n - i) << std::endl;
+		std::cout << i << " / " << _n << std::endl;
 
 		PrintTops(tops, true, true);
 	}
@@ -181,7 +179,6 @@ void UnitTest()
 static
 void PerformanceTest()
 {
-	std::cout << __FUNCTION__ << std::endl;
 	std::cout << "Test running...";
 	static const size_t _n = 10'000'000;
 	size_t update_gainers = 0;
@@ -220,7 +217,6 @@ void PerformanceTest()
 static 
 void RandomTest()
 {
-	std::cout << __FUNCTION__ << std::endl;
 	size_t update_gainers = 0;
 	size_t update_losers = 0;
 	bool delay = false;
@@ -254,7 +250,6 @@ void RandomTest()
 static 
 void ReadFromFile()
 {
-	std::cout << __FUNCTION__ << std::endl;
 	CTopStocks tops;
 	tops.SetUpdateTopsCallback([&](auto &tops, bool gnr, bool lsr)
 	{
@@ -293,7 +288,6 @@ int main()
 			std::cout << "0: exit" << std::endl;
 		
 			int n = _getch();
-			//std::cin >> n;
 
 			system("cls");
 			switch (n)
