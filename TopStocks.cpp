@@ -80,7 +80,7 @@ std::pair<TStockID, TPrice> GenRandomStock()
 }
 
 static
-void PrintStock(CStock &stock)
+void PrintStock(const CStock &stock)
 {
 	printf("%6zu %9.2f %9.2f %6.2f%%", stock.m_id, stock.m_open, stock.m_last, stock.GetChangPercent());
 }
@@ -213,6 +213,7 @@ void PerformanceTest()
 		<< "Upd Gainers: " << update_gainers << std::endl
 		<< "Upd Losers : " << update_losers << std::endl
 		<< "Time       : " << dt.count() << " ms" << std::endl
+		<< "Trades/sec : " << size_t(_n / (double(dt.count()) / 1000.0)) << std::endl
 		;
 }
 
@@ -291,17 +292,19 @@ int main()
 			std::cout << "4: Benchmark" << std::endl;
 			std::cout << "0: exit" << std::endl;
 		
-			int n = 0;
-			std::cin >> n;
+			int n = _getch();
+			//std::cin >> n;
 
 			system("cls");
 			switch (n)
 			{
-			case 1: UnitTest(); break;
-			case 2: ReadFromFile(); break;
-			case 3: RandomTest(); break;
-			case 4: PerformanceTest(); break; 
-			case 0: return 0;
+			case '1': UnitTest(); break;
+			case '2': ReadFromFile(); break;
+			case '3': RandomTest(); break;
+			case '4': PerformanceTest(); break; 
+
+			case 27: 
+			case '0': return 0;
 			default: continue;
 			}
 			system("pause");

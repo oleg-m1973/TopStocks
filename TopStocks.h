@@ -102,22 +102,22 @@ public:
 			m_fn(*this, update.first, update.second);
 	}
 
-	std::vector<CStock *> GetGainers() const
+	std::vector<const CStock *> GetGainers() const
 	{
 		return GetGainers(m_depth);
 	}
 
-	std::vector<CStock *> GetGainers(size_t depth) const
+	std::vector<const CStock *> GetGainers(size_t depth) const
 	{
 		return GetTops(m_tops.rbegin(), m_tops.rend(), depth, true);
 	}
 
-	std::vector<CStock *> GetLosers() const
+	std::vector<const CStock *> GetLosers() const
 	{
 		return GetLosers(m_depth);
 	}
 
-	std::vector<CStock *> GetLosers(size_t depth) const
+	std::vector<const CStock *> GetLosers(size_t depth) const
 	{
 		return GetTops(m_tops.begin(), m_tops.end(), depth, false);
 	}
@@ -127,9 +127,9 @@ public:
 		return m_stocks.size();
 	}
 
-	std::vector<CStock *> GetStocks() const
+	std::vector<const CStock *> GetStocks() const
 	{
-		std::vector<CStock *> res;
+		std::vector<const CStock *> res;
 		res.reserve(m_stocks.size());
 		for (auto &item: m_stocks)
 			res.emplace_back(item.second.get());
@@ -144,9 +144,9 @@ public:
 
 protected:
 	template <typename It>
-	std::vector<CStock *> GetTops(It it, It end, size_t depth, bool gainer) const
+	auto GetTops(It it, It end, size_t depth, bool gainer) const
 	{
-		std::vector<CStock *> res;
+		std::vector<const CStock *> res;
 		res.reserve(depth);
 		for (; it != end && depth && (gainer? it->second->IsGainer(): it->second->IsLoser()); ++it, --depth)
 			res.emplace_back(it->second);
