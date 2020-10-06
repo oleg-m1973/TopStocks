@@ -298,8 +298,10 @@ int main()
 			case '4': PerformanceTest(); break; 
 
 			case 27: 
-			case '0': return 0;
-			default: continue;
+			case '0': 
+				return 0;
+			default: 
+				continue;
 			}
 			system("pause");
 		}
