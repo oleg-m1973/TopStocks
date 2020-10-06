@@ -179,6 +179,7 @@ protected:
 		bool gainers_changed = false;
 		if (m_gainers == 0 || change >= m_gainers || change_prev >= m_gainers)
 		{
+			m_gainers = 0;
 			auto it = m_tops.rbegin();
 			for (size_t i = 0; i < m_depth && it->second->IsGainer(); ++it, ++i)
 				m_gainers = it->second->m_change;
@@ -189,6 +190,7 @@ protected:
 		bool losers_changed = false;
 		if (m_losers == 0 || (change != 0 && change <= m_losers) || (change_prev != 0 && change_prev <= m_losers))
 		{
+			m_losers = 0;
 			auto it = m_tops.begin();
 			for (size_t i = 0; i < m_depth && it->second->IsLoser(); ++it, ++i)
 				m_losers = it->second->m_change;
