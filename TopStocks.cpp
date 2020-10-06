@@ -23,6 +23,7 @@ void PrintTops(const CTopStocks &tops)
 	PrintTops("Losers", losers);
 	system("pause");
 }
+
 int main()
 {
 	//std::random_device rd;
