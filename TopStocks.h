@@ -24,12 +24,10 @@ public:
 	{
 	}
 
-	constexpr TChangePercent UpdateLastParice(const TPrice &price) noexcept
+	void UpdateLastParice(const TPrice &price) noexcept
 	{
 		m_last = price;
-		const auto change = m_change;
 		m_change = TChangePercent((100.0 * (price - m_open) / m_open) * 100.0 + (price < m_open? -0.5: 0.5));
-		return change;
 	}
 
 	constexpr double GetChangPercent() const noexcept
@@ -75,8 +73,9 @@ public:
 		if (stock.m_last == price)
 			return;
 
-		const TChangePercent change_prev = stock.UpdateLastParice(price);
-		if (stock.m_change == change_prev)
+		const TChangePercent change_prev = stock.m_change;
+		stock.UpdateLastParice(price);
+		if (change_prev == stock.m_change)
 			return;
 
 		TTopStocksMap::node_type node;
@@ -97,9 +96,15 @@ public:
 			}
 		}
 
-		const auto update = UpdateTops(change_prev, stock.m_change);
-		if (m_fn && (update.first || update.second))
-			m_fn(*this, update.first, update.second);
+		const bool is_small = m_tops.size() <= m_depth;
+		const bool update_gainers = is_small || (change_prev > m_gainers) || (stock.m_change > m_gainers);
+		const bool update_losers = is_small || (change_prev < m_losers) || (stock.m_change < m_losers);
+		
+		if (!is_small)
+			UpdateTops(update_gainers, update_losers);
+
+		if (m_fn && (update_gainers || update_losers))
+			m_fn(*this, update_gainers, update_losers);
 	}
 
 	std::vector<const CStock *> GetGainers() const
@@ -171,33 +176,23 @@ protected:
 		return *it.first->second;
 	}
 
-	std::pair<bool, bool> UpdateTops(const TChangePercent &change_prev, const TChangePercent &change) noexcept
+	void UpdateTops(bool update_gainers, bool update_losers) noexcept
 	{
-		if (m_tops.size() <= m_depth)
-			return {true, true};
-
-		bool gainers_changed = false;
-		if (m_gainers == 0 || change >= m_gainers || change_prev >= m_gainers)
+		if (update_gainers)
 		{
 			m_gainers = 0;
 			auto it = m_tops.rbegin();
 			for (size_t i = 0; i < m_depth && it->second->IsGainer(); ++it, ++i)
 				m_gainers = it->second->m_change;
-
-			gainers_changed = true;
 		}
 
-		bool losers_changed = false;
-		if (m_losers == 0 || (change != 0 && change <= m_losers) || (change_prev != 0 && change_prev <= m_losers))
+		if (update_losers)
 		{
 			m_losers = 0;
 			auto it = m_tops.begin();
 			for (size_t i = 0; i < m_depth && it->second->IsLoser(); ++it, ++i)
 				m_losers = it->second->m_change;
-			
-			losers_changed = true;
 		}
-		return {gainers_changed, losers_changed};
 	}
 
 	const size_t m_depth;
