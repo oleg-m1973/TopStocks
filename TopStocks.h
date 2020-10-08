@@ -77,7 +77,7 @@ public:
 
 	void OnQuote(const TStockID &id, const TPrice &price)
 	{
-		auto &stock = GetStock(id, price);
+		auto &stock = GetStock(id);
 		const TChangePercent change_prev = stock.m_change;
 
 		if (!stock.UpdateLastPrice(price))
@@ -143,7 +143,8 @@ public:
 		std::vector<const CStock *> res;
 		res.reserve(m_stocks.size());
 		for (auto &item: m_stocks)
-			res.emplace_back(item.get());
+			if (item)
+				res.emplace_back(item.get());
 				
 		return res;
 	}
@@ -165,7 +166,7 @@ protected:
 		return res;
 	}
 
-	CStock &GetStock(const TStockID &id, const TPrice &price)
+	CStock &GetStock(const TStockID &id)
 	{
 		if (id >= m_stocks.size())
 			m_stocks.resize(id + 1);
