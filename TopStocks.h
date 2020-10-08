@@ -17,17 +17,22 @@ class CStock
 {
 friend CTopStocks;
 public:
-	CStock(TStockID id, TPrice price)
+	CStock(TStockID id)
 	: m_id(id)
-	, m_open(price)
-	, m_last(price)
 	{
 	}
 
-	void UpdateLastParice(const TPrice &price) noexcept
+	bool UpdateLastPrice(const TPrice &price) noexcept
 	{
+		if (m_open == 0)
+		{
+			m_open = m_last = price;
+			m_change = 0;
+			return false;
+		}
 		m_last = price;
 		m_change = TChangePercent((100.0 * (price - m_open) / m_open) * 100.0 + (price < m_open? -0.5: 0.5));
+		return true;
 	}
 
 	constexpr double GetChangPercent() const noexcept
@@ -46,7 +51,7 @@ public:
 	}
 
 	const TStockID m_id;
-	const TPrice m_open = 0;
+	TPrice m_open = 0;
 	TPrice m_last = 0;
 
 	TChangePercent m_change = 0;
@@ -57,9 +62,12 @@ private:
 class CTopStocks
 {
 public:
-	CTopStocks(size_t depth = 10)
+	CTopStocks(size_t depth = 10, TStockID max_quote_id = 10000)
 	: m_depth(depth)
 	{
+		m_stocks.reserve(max_quote_id + 1);
+		for (TStockID id = 0; id <= max_quote_id; ++id)
+			m_stocks.emplace_back(std::make_unique<CStock>(id));
 	}
 
 	auto SetUpdateTopsCallback(std::function<void (const CTopStocks &, bool, bool)> fn)
@@ -70,11 +78,11 @@ public:
 	void OnQuote(const TStockID &id, const TPrice &price)
 	{
 		auto &stock = GetStock(id, price);
-		if (stock.m_last == price)
+		const TChangePercent change_prev = stock.m_change;
+
+		if (!stock.UpdateLastPrice(price))
 			return;
 
-		const TChangePercent change_prev = stock.m_change;
-		stock.UpdateLastParice(price);
 		if (change_prev == stock.m_change)
 			return;
 
@@ -96,12 +104,10 @@ public:
 			}
 		}
 
-		const bool is_small = m_tops.size() <= m_depth;
-		const bool update_gainers = is_small || (change_prev > m_gainers) || (stock.m_change > m_gainers);
-		const bool update_losers = is_small || (change_prev < m_losers) || (stock.m_change < m_losers);
+		const bool update_gainers = (change_prev >= m_gainers) || (stock.m_change >= m_gainers);
+		const bool update_losers = (change_prev <= m_losers) || (stock.m_change <= m_losers);
 		
-		if (!is_small)
-			UpdateTops(update_gainers, update_losers);
+		UpdateTops(update_gainers, update_losers);
 
 		if (m_fn && (update_gainers || update_losers))
 			m_fn(*this, update_gainers, update_losers);
@@ -137,7 +143,7 @@ public:
 		std::vector<const CStock *> res;
 		res.reserve(m_stocks.size());
 		for (auto &item: m_stocks)
-			res.emplace_back(item.second.get());
+			res.emplace_back(item.get());
 				
 		return res;
 	}
@@ -161,19 +167,11 @@ protected:
 
 	CStock &GetStock(const TStockID &id, const TPrice &price)
 	{
-		auto it = m_stocks.emplace(id, nullptr);
-		if (it.second)
-			try
-			{
-				it.first->second.reset(new CStock(id, price));
-			}
-			catch (...)
-			{
-				m_stocks.erase(it.first);
-				throw;
-			}
+		if (id >= m_stocks.size())
+			m_stocks.resize(id + 1);
 
-		return *it.first->second;
+		auto &sp = m_stocks[id];
+		return !sp? *(sp = std::make_unique<CStock>(id)): *sp;
 	}
 
 	void UpdateTops(bool update_gainers, bool update_losers) noexcept
@@ -182,7 +180,7 @@ protected:
 		{
 			m_gainers = 0;
 			auto it = m_tops.rbegin();
-			for (size_t i = 0; i < m_depth && it->second->IsGainer(); ++it, ++i)
+			for (size_t i = 0, n = std::min(m_depth, m_tops.size()); i < n && it->second->IsGainer(); ++it, ++i)
 				m_gainers = it->second->m_change;
 		}
 
@@ -190,13 +188,13 @@ protected:
 		{
 			m_losers = 0;
 			auto it = m_tops.begin();
-			for (size_t i = 0; i < m_depth && it->second->IsLoser(); ++it, ++i)
+			for (size_t i = 0, n = std::min(m_depth, m_tops.size()); i < n  && it->second->IsLoser(); ++it, ++i)
 				m_losers = it->second->m_change;
 		}
 	}
 
 	const size_t m_depth;
-	std::unordered_map<TStockID, std::unique_ptr<CStock>> m_stocks;
+	std::vector<std::unique_ptr<CStock>> m_stocks;
 
 	TChangePercent m_gainers = 0;
 	TChangePercent m_losers = 0;
