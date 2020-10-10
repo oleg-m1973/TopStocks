@@ -284,7 +284,7 @@ public:
 			m_fn_gainers(m_gainers);
 
 		if (m_fn_losers && (update_losers || stock.m_loser))
-			m_fn_losers(m_gainers);
+			m_fn_losers(m_losers);
 	}
 
 	constexpr size_t GetDepth() const noexcept
