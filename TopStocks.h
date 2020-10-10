@@ -273,15 +273,15 @@ public:
 		}
 
 		const bool update_gainers = 
-			m_gainers.size() < m_depth ||
-			(change_prev >= m_gainers.back()->m_change) || 
-			(stock.m_change >= m_gainers.back()->m_change);
+			m_gainers.size() < m_depth? stock.IsGainer():
+			((change_prev >= m_gainers.back()->m_change) || 
+			(stock.m_change >= m_gainers.back()->m_change));
 
 
 		const bool update_losers = 
-			m_losers.size() < m_depth ||
-			(change_prev <= m_losers.back()->m_change) || 
-			(stock.m_change <= m_losers.back()->m_change);
+			m_losers.size() < m_depth? stock.IsLoser(): 
+			((change_prev <= m_losers.back()->m_change) || 
+			(stock.m_change <= m_losers.back()->m_change));
 
 		UpdateTops(update_gainers, update_losers);
 		
