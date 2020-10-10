@@ -119,8 +119,6 @@ void PrintTops(const CTopStocks &tops, bool update_gainers, bool update_loosers)
 
 	::SetConsoleCursorPosition(h, {0, yy + SHORT(tops.GetDepth())});
 	std::cout << std::endl;
-
-	std::cout << "Stocks: " << tops.GetStockCount() << std::endl;
 }
 
 static 
@@ -176,37 +174,55 @@ void UnitTest()
 	std::cout << "OK: " << dt.count() <<  " ms" << std::endl;
 }
 
-static
+template <typename TTopStocks>
 void PerformanceTest()
 {
 	std::cout << "Test running...";
 	static const size_t _n = 10'000'000;
 	size_t update_gainers = 0;
 	size_t update_losers = 0;
-	CTopStocks tops;
-	tops.SetUpdateTopsCallback([&](auto &, bool gnr, bool lsr)
+	TTopStocks tops;
+	if constexpr(std::is_same_v<TTopStocks, CTopStocks>)
 	{
-		if (gnr)
+		tops.SetUpdateTopsCallback([&](auto &, bool gnr, bool lsr)
+		{
+			if (gnr)
+				++update_gainers;
+
+			if (lsr)
+				++update_losers;
+		});
+	}
+	else 
+	{
+		tops.SetGainersCallback([&](auto &)
+		{
 			++update_gainers;
+		});
 
-		if (lsr)
+		tops.SetLosersCallback([&](auto &)
+		{
 			++update_losers;
-	});
+		});
+	}
 
+	
+	std::vector<std::pair<TStockID, TPrice>> stocks;
+	stocks.reserve(_n);
+	for (size_t i = 0; i < _n; ++i)
+		stocks.emplace_back(GenRandomStock());
 
 	CTimer tm;
 
-	for (size_t i = 0; i < _n; ++i)
-	{
-		const auto stock = GenRandomStock();
+	for (auto &stock: stocks)
 		tops.OnQuote(stock.first, stock.second);
-	}
+
 	const auto dt = tm.Diff();
 
 	system("cls");
 	std::cout 
 		<< "Trades     : " << _n << std::endl
-		<< "Stocks     : " << tops.GetStockCount() << std::endl
+		<< "Stocks     : " << StockNumber << std::endl
 		<< "Upd Gainers: " << update_gainers << std::endl
 		<< "Upd Losers : " << update_losers << std::endl
 		<< "Time       : " << dt.count() << " ms" << std::endl
@@ -273,6 +289,7 @@ void ReadFromFile()
 	system("cls");
 	PrintTops(tops, true, true);
 }
+
 int main()
 {
 	//setlocale(LC_ALL, "Russian");
@@ -285,6 +302,7 @@ int main()
 			std::cout << "2: Read from file ./stocks.txt" << std::endl;
 			std::cout << "3: Random stocks" << std::endl;
 			std::cout << "4: Benchmark" << std::endl;
+			std::cout << "5: Benchmark 2" << std::endl;
 			std::cout << "0: exit" << std::endl;
 		
 			int n = _getch();
@@ -295,7 +313,8 @@ int main()
 			case '1': UnitTest(); break;
 			case '2': ReadFromFile(); break;
 			case '3': RandomTest(); break;
-			case '4': PerformanceTest(); break; 
+			case '4': PerformanceTest<CTopStocks>(); break; 
+			case '5': PerformanceTest<CTopStocks2>(); break; 
 
 			case 27: 
 			case '0': 
