@@ -59,10 +59,6 @@ public:
 	TChangePercent m_change = 0;
 private:
 	std::optional<TTopStocksMap::iterator> m_it;
-
-	//CTopStocks2
-	bool m_gainer = false;
-	bool m_loser = false;
 };
 
 class CStocks
@@ -258,9 +254,6 @@ public:
 		if (change_prev == stock.m_change)
 			return;
 
-		const bool update_gainers = stock.m_gainer;
-		const bool update_losers = stock.m_loser;
-
 		TTopStocksMap::node_type node;
 		if (stock.m_it)
 		{
@@ -279,12 +272,23 @@ public:
 			}
 		}
 
-		UpdateTops(stock);
+		const bool update_gainers = 
+			m_gainers.size() < m_depth ||
+			(change_prev >= m_gainers.back()->m_change) || 
+			(stock.m_change >= m_gainers.back()->m_change);
+
+
+		const bool update_losers = 
+			m_losers.size() < m_depth ||
+			(change_prev <= m_losers.back()->m_change) || 
+			(stock.m_change <= m_losers.back()->m_change);
+
+		UpdateTops(update_gainers, update_losers);
 		
-		if (m_fn_gainers && (update_gainers || stock.m_gainer))
+		if (m_fn_gainers && update_gainers)
 			m_fn_gainers(m_gainers);
 
-		if (m_fn_losers && (update_losers || stock.m_loser))
+		if (m_fn_losers && update_losers)
 			m_fn_losers(m_losers);
 	}
 
@@ -294,11 +298,10 @@ public:
 	}
 
 protected:
-	void UpdateTops(CStock &stock) noexcept
+	void UpdateTops(bool update_gainers, bool update_losers) noexcept
 	{
-		if (stock.m_gainer || (m_gainers.size() >= m_depth? stock.m_change >= m_gainers.back()->m_change: stock.IsGainer()))
+		if (update_gainers)
 		{
-			stock.m_gainer = false;
 			m_gainers.clear();
 			auto it = m_tops.rbegin();
 			for (size_t i = 0, n = std::min(m_depth, m_tops.size()); i < n; ++it, ++i)
@@ -306,14 +309,12 @@ protected:
 				auto &stock = *it->second;
 				if (!stock.IsGainer())
 					break;
-				stock.m_gainer = true;
 				m_gainers.emplace_back(&stock);
 			}
 		}
 
-		if (stock.m_loser || (m_losers.size() >= m_depth? stock.m_change <= m_losers.back()->m_change: stock.IsLoser()))
+		if (update_losers)
 		{
-			stock.m_loser = false;
 			m_losers.clear();
 			auto it = m_tops.begin();
 			for (size_t i = 0, n = std::min(m_depth, m_tops.size()); i < n; ++it, ++i)
@@ -321,7 +322,6 @@ protected:
 				auto &stock = *it->second;
 				if (!stock.IsLoser())
 					break;
-				stock.m_loser = true;
 				m_losers.emplace_back(&stock);
 			}
 		}
