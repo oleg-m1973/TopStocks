@@ -141,8 +141,9 @@ public:
 			}
 		}
 
-		const bool update_gainers = (change_prev >= m_gainers) || (stock.m_change >= m_gainers);
-		const bool update_losers = (change_prev <= m_losers) || (stock.m_change <= m_losers);
+		const bool not_full = m_tops.size() < 2 * m_depth;
+		const bool update_gainers = (change_prev >= m_gainers) || (stock.m_change >= m_gainers) || (not_full && stock.IsGainer());
+		const bool update_losers = (change_prev <= m_losers) || (stock.m_change <= m_losers) || (not_full && stock.IsLoser());
 		
 		UpdateTops(update_gainers, update_losers);
 
@@ -206,7 +207,7 @@ protected:
 		{
 			m_losers = 0;
 			auto it = m_tops.begin();
-			for (size_t i = 0, n = std::min(m_depth, m_tops.size()); i < n  && it->second->IsLoser(); ++it, ++i)
+			for (size_t i = 0, n = std::min(m_depth, m_tops.size()); i < n && it->second->IsLoser(); ++it, ++i)
 				m_losers = it->second->m_change;
 		}
 	}
@@ -295,7 +296,7 @@ public:
 protected:
 	void UpdateTops(CStock &stock) noexcept
 	{
-		if (stock.m_gainer || m_gainers.empty() || stock.m_change >= m_gainers.back()->m_change)
+		if (stock.m_gainer || (m_gainers.size() >= m_depth? stock.m_change >= m_gainers.back()->m_change: stock.IsGainer()))
 		{
 			stock.m_gainer = false;
 			m_gainers.clear();
@@ -310,7 +311,7 @@ protected:
 			}
 		}
 
-		if (stock.m_loser || m_losers.empty() || stock.m_change <= m_losers.back()->m_change)
+		if (stock.m_loser || (m_losers.size() >= m_depth? stock.m_change <= m_losers.back()->m_change: stock.IsLoser()))
 		{
 			stock.m_loser = false;
 			m_losers.clear();
